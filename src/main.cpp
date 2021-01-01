@@ -34,14 +34,17 @@
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 #define DEVICE_NAME "esp-airq-thing"
-
 #define OTA_REMOTE_URL ""
+#define CHECK_PROPS_INTERVAL_SEC 60
+
 
 WebThingAdapter *adapter;
 Ticker checkPropTimer;
 PMS pms(Serial);
 PMS::DATA data;
 Adafruit_BME280 bme;
+
+ThingActionObject *action_generator(DynamicJsonDocument *);
 
 const char *airqTypes[] = {"AirQualitySensor", nullptr};
 ThingDevice airqSensor("airq", DEVICE_NAME, airqTypes);
@@ -51,6 +54,8 @@ ThingProperty pm10Prop("PM10", "Level of PM10 particles", INTEGER, "DensityPrope
 ThingProperty temperatureProp("Temperature", "Temperature", NUMBER, "TemperatureProperty");
 ThingProperty humidityProp("Humidity", "Humidity", NUMBER, "LevelProperty");
 ThingProperty pressureProp("Pressure", "Pressure", NUMBER, "BarometricPressureProperty");
+ThingProperty remoteUpdateUrlProp("RemoteUpdateURL", "Remote Update URL", STRING, "");
+ThingAction startRemoteUpdateAction("StartRemoteUpdate", "Start Remote Update", "Start Remote Update", "ToggleAction", NULL, action_generator);
 
 void setupWiFi(String deviceName) {
   WiFi.mode(WIFI_STA);
@@ -119,6 +124,7 @@ void setupWebThing(String deviceName) {
   airqSensor.addProperty(&temperatureProp);
   airqSensor.addProperty(&humidityProp);
   airqSensor.addProperty(&pressureProp);
+  airqSensor.addAction(&startRemoteUpdateAction);
   adapter->addDevice(&airqSensor);
   adapter->begin();
 }
@@ -186,7 +192,7 @@ void blinkNTimes(int n) {
   }
 }
 
-void startRemoteUpdate() {
+void startRemoteUpdate(const JsonVariant &input) {
   digitalWrite(LED_BUILTIN, LOW);
   ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
 
@@ -200,6 +206,10 @@ void startRemoteUpdate() {
   }
   
   digitalWrite(LED_BUILTIN, HIGH);
+}
+
+ThingActionObject *action_generator(DynamicJsonDocument *input) {
+  return new ThingActionObject("StartRemoteUpdate", input, startRemoteUpdate, nullptr);
 }
 
 void setup()
@@ -219,7 +229,7 @@ void setup()
   setupWiFi(deviceName);
   setupWebThing(deviceName);
 
-  checkPropTimer.attach(5, checkProps);
+  checkPropTimer.attach(CHECK_PROPS_INTERVAL_SEC, checkProps);
 }
 
 void loop()
